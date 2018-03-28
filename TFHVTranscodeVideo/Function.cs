@@ -19,7 +19,6 @@ namespace TFHVTranscodeVideo
 {
     public class Function
     {
-        IAmazonS3 S3Client { get; set; }
 
         /// <summary>
         /// Default constructor. This constructor is used by Lambda to construct the instance. When invoked in a Lambda environment
@@ -28,16 +27,7 @@ namespace TFHVTranscodeVideo
         /// </summary>
         public Function()
         {
-            S3Client = new AmazonS3Client();
-        }
-
-        /// <summary>
-        /// Constructs an instance with a preconfigured S3 client. This can be used for testing the outside of the Lambda environment.
-        /// </summary>
-        /// <param name="s3Client"></param>
-        public Function(IAmazonS3 s3Client)
-        {
-            this.S3Client = s3Client;
+            
         }
 
         /// <summary>
@@ -60,24 +50,45 @@ namespace TFHVTranscodeVideo
             try
             {
                 var key = s3Event.Object.Key;
+                if (key == null)
+                {
+                    LambdaLogger.Log("Object key is null!");
+                    return null;
+                }
                 var sourceKey = HttpUtility.UrlDecode(key.Replace(' ', '+'));
-                var outputKey = sourceKey.Split('.')[0];
-                var outputs = new List<CreateJobOutput>();
-                outputs.Add(new CreateJobOutput()
+                
+                if (sourceKey == null || (!sourceKey.EndsWith(".mp4") && !sourceKey.EndsWith(".avi") &&
+                    !sourceKey.EndsWith(".mov")))
                 {
-                    Key = outputKey + "-1080p.mp4",
-                    PresetId = "1351620000001-000001" //Generic 1080p
-                });
-                outputs.Add(new CreateJobOutput()
+                    LambdaLogger.Log("Not valid video format!");
+                    return null;
+                }
+                LambdaLogger.Log("source key: " + sourceKey);
+                var outputKey="";
+                var sourceKeyStrings = sourceKey.Split('.');
+                for (var i = 0; i < sourceKeyStrings.Length-1; i++)
                 {
-                    Key = outputKey + "-720p.mp4",
-                    PresetId = "1351620000001-000010" //Generic 720p
-                });
-                outputs.Add(new CreateJobOutput()
+                    outputKey += sourceKeyStrings[i]; 
+                }
+                LambdaLogger.Log("output key: " + outputKey);
+                var outputs = new List<CreateJobOutput>
                 {
-                    Key = outputKey + "-web-720p.mp4",
-                    PresetId = "1351620000001-100070" ///Web Friendly 720p
-                });
+                    new CreateJobOutput()
+                    {
+                        Key = outputKey + "-1080p.mp4",
+                        PresetId = "1351620000001-000001" //Generic 1080p
+                    },
+                    new CreateJobOutput()
+                    {
+                        Key = outputKey + "-720p.mp4",
+                        PresetId = "1351620000001-000010" //Generic 720p
+                    },
+                    new CreateJobOutput()
+                    {
+                        Key = outputKey + "-web-720p.mp4",
+                        PresetId = "1351620000001-100070" //Web Friendly 720p
+                    }
+                };
                 var response = await etsClient.CreateJobAsync(new CreateJobRequest()
                 {
                     PipelineId = "1522009373582-29i9ac",
@@ -93,7 +104,6 @@ namespace TFHVTranscodeVideo
             }
             catch (Exception e)
             {
-                context.Logger.LogLine($"Error getting object {s3Event.Object.Key} from bucket {s3Event.Bucket.Name}. Make sure they exist and your bucket is in the same region as this function.");
                 context.Logger.LogLine(e.Message);
                 context.Logger.LogLine(e.StackTrace);
                 throw;

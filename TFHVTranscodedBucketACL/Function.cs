@@ -20,7 +20,7 @@ namespace TFHVTranscodedBucketACL
 {
     public class Function
     {
-        IAmazonS3 S3Client { get; set; }
+        private IAmazonS3 S3Client { get; set; }
 
         /// <summary>
         /// Default constructor. This constructor is used by Lambda to construct the instance. When invoked in a Lambda environment
@@ -47,6 +47,7 @@ namespace TFHVTranscodedBucketACL
             JObject snsMessage = JObject.Parse(evnt.Records[0].Sns.Message);
             if (snsMessage == null)
             {
+                LambdaLogger.Log("SNS message is null!");
                 return null;
             }
 
@@ -95,7 +96,6 @@ namespace TFHVTranscodedBucketACL
             }
             catch (Exception e)
             {
-                //context.Logger.LogLine($"Error getting object {snsMessage.Object.Key} from bucket {snsMessage.Bucket.Name}. Make sure they exist and your bucket is in the same region as this function.");
                 context.Logger.LogLine(e.Message);
                 context.Logger.LogLine(e.StackTrace);
                 throw;
